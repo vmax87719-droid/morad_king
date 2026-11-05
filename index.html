@@ -121,7 +121,6 @@ padding:11px 13px;font-size:11px;color:#ffb3bd;margin-bottom:13px;line-height:1.
 
   <div id="gate" class="warn hide"></div>
 
-  <!-- الرئيسية -->
   <div id="tabHome">
     <div class="bal">
       <div class="blab" id="blab">رصيدك</div>
@@ -168,7 +167,6 @@ padding:11px 13px;font-size:11px;color:#ffb3bd;margin-bottom:13px;line-height:1.
     <div class="note" id="note"></div>
   </div>
 
-  <!-- المتجر -->
   <div id="tabStore" class="hide">
     <div id="warnBox" class="warn hide"></div>
     <div class="sect">
@@ -178,7 +176,6 @@ padding:11px 13px;font-size:11px;color:#ffb3bd;margin-bottom:13px;line-height:1.
     <div id="list"></div>
   </div>
 
-  <!-- حسابي -->
   <div id="tabAcct" class="hide">
     <div class="bal">
       <div class="blab" id="blab2">رصيدك</div>
@@ -209,15 +206,14 @@ padding:11px 13px;font-size:11px;color:#ffb3bd;margin-bottom:13px;line-height:1.
 <div class="toast" id="toast"></div>
 
 <script>
-/* ================= الثوابت ================= */
 var BOT="MORAD_king_storbot";
 var CH_OFF="https://t.me/moradking11";
 var CH_PRF="https://t.me/morad_botx";
+var API_BASE="https://api.telebotcreator.com/new-webhook?data=";
 
 var tg=(window.Telegram&&window.Telegram.WebApp)?window.Telegram.WebApp:null;
 if(tg){try{tg.ready();tg.expand();}catch(e){}}
 
-/* ============ الهوية: من الرابط فقط، أو من تيليجرام. لا ذاكرة متصفح ============ */
 var qh=new URLSearchParams((location.hash||"").replace(/^#/,""));
 var qq=new URLSearchParams(location.search||"");
 function P(k){var v=qh.get(k);if(v===null||v==="")v=qq.get(k);return v;}
@@ -230,7 +226,6 @@ try{
     TG_UID=String(tg.initDataUnsafe.user.id);
 }catch(e){}
 
-/* إن اختلف معرّف الرابط عن معرّف تيليجرام، فالرابط لا يخصّ هذا المستخدم */
 var MISMATCH=false;
 var UID=URL_UID;
 if(TG_UID!==""){
@@ -238,9 +233,16 @@ if(TG_UID!==""){
   if(URL_UID!==""&&URL_UID!==TG_UID) MISMATCH=true;
 }
 
-var API=P("api")||"";
-var GAPI=P("gapi")||"";
-if(MISMATCH){ API=""; GAPI=""; }
+/* التوكنات تُقرأ كما هي، والصفحة تبني الرابط الكامل */
+var TOK_API=P("at")||"";
+var TOK_GIFT=P("gt")||"";
+/* توافق مع النسخ السابقة التي كانت ترسل رابطاً كاملاً */
+if(TOK_API===""){var f=P("api")||"";if(f!==""&&f.indexOf("data=")>-1)TOK_API=f.split("data=")[1];}
+if(TOK_GIFT===""){var fg=P("gapi")||"";if(fg!==""&&fg.indexOf("data=")>-1)TOK_GIFT=fg.split("data=")[1];}
+if(MISMATCH){TOK_API="";TOK_GIFT="";}
+
+var API=TOK_API?API_BASE+TOK_API:"";
+var GAPI=TOK_GIFT?API_BASE+TOK_GIFT:"";
 
 var LANG=P("g")||"ar";
 if(LANG!=="en")LANG="ar";
@@ -291,15 +293,11 @@ mismatch:"This link is not for your account. Open the app from your bot.",lang:"
 
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
-function toast(m){var e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(function(){e.classList.remove("on");},2400);}
+function toast(m){var e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(function(){e.classList.remove("on");},2600);}
 function refLink(){return UID?("https://t.me/"+BOT+"?start=ref_"+UID):"—";}
-function fmtLeft(s){
-  if(s<60)return s+"s";
+function fmtLeft(s){s=parseInt(s,10)||0;if(s<60)return s+"s";
   var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
-  if(h>0&&m===0)return h+"h";
-  if(h>0)return h+"h "+m+"m";
-  return m+"m";
-}
+  if(h>0&&m===0)return h+"h";if(h>0)return h+"h "+m+"m";return m+"m";}
 
 function render(){
   var t=T[LANG];
@@ -329,8 +327,7 @@ function render(){
   $("rlink").textContent=refLink(); $("rlink2").textContent=refLink();
 
   var g=$("gate");
-  if(MISMATCH){ g.textContent=t.mismatch; g.classList.remove("hide"); }
-  else { g.classList.add("hide"); }
+  if(MISMATCH){g.textContent=t.mismatch;g.classList.remove("hide");}else{g.classList.add("hide");}
 
   var box=$("list"); box.innerHTML="";
   if(!PRODUCTS.length){
@@ -362,14 +359,15 @@ $("navHome").addEventListener("click",function(){showTab("home");});
 $("navStore").addEventListener("click",function(){showTab("store");});
 $("navAcct").addEventListener("click",function(){showTab("acct");});
 
-/* ===== الشراء: رابط عميق يفتح البوت على المنتج ===== */
+function openDeep(payload){
+  var link="https://t.me/"+BOT+"?start="+payload;
+  if(tg&&tg.openTelegramLink){try{tg.openTelegramLink(link);return;}catch(e){}}
+  location.href=link;
+}
+
 function buy(id){
   toast(T[LANG].opening);
-  var link="https://t.me/"+BOT+"?start=buy_"+id;
-  setTimeout(function(){
-    if(tg&&tg.openTelegramLink){try{tg.openTelegramLink(link);return;}catch(e){}}
-    location.href=link;
-  },600);
+  setTimeout(function(){openDeep("buy_"+id);},500);
 }
 
 function openCh(url){
@@ -394,38 +392,37 @@ $("langBtn").addEventListener("click",function(){
   render();
 });
 
-/* ===== الهدية اليومية — نفس عداد البوت ===== */
-function giftIdle(){
-  var t=T[LANG], b=$("gBtn");
-  b.disabled=false; b.textContent=t.gClaim;
-  $("gSub").textContent=t.gSub;
-}
-function giftLock(sec){
-  var t=T[LANG], b=$("gBtn");
-  b.disabled=true;
-  b.textContent=t.gWait+fmtLeft(sec);
-  $("gSub").textContent=t.gSub;
-}
+/* ===== الهدية: من نفس عدّاد البوت ===== */
+function giftIdle(){var t=T[LANG],b=$("gBtn");b.disabled=false;b.textContent=t.gClaim;$("gSub").textContent=t.gSub;}
+function giftLock(sec){var t=T[LANG],b=$("gBtn");b.disabled=true;b.textContent=t.gWait+fmtLeft(sec);$("gSub").textContent=t.gSub;}
+
 $("gBtn").addEventListener("click",function(){
-  var t=T[LANG], b=$("gBtn");
-  if(!GAPI){ toast(t.gNoApi); return; }
+  var t=T[LANG],b=$("gBtn");
+  if(!GAPI){
+    toast(t.gNoApi);
+    setTimeout(function(){openDeep("gift");},900);
+    return;
+  }
   b.disabled=true; b.textContent="...";
-  fetch(GAPI+"&t="+Date.now(),{method:"GET",cache:"no-store"})
+  fetch(GAPI,{method:"GET",cache:"no-store"})
     .then(function(r){return r.json();})
     .then(function(d){
       var r=(d&&d.result)?d.result:d;
       if(!r||!r.ok){
-        if(r&&r.err==="cooldown"&&r.left>0){ giftLock(parseInt(r.left,10)||0); toast(t.gWait+fmtLeft(r.left)); }
-        else if(r&&r.err==="disabled"){ $("gSub").textContent=t.gOff; b.disabled=true; b.textContent=t.gOff; }
-        else { giftIdle(); toast(t.noapi); }
+        if(r&&r.err==="cooldown"&&r.left>0){giftLock(parseInt(r.left,10)||0);toast(t.gWait+fmtLeft(r.left));}
+        else if(r&&r.err==="disabled"){$("gSub").textContent=t.gOff;b.disabled=true;b.textContent=t.gOff;}
+        else{toast(t.noapi);setTimeout(function(){openDeep("gift");},900);}
         return;
       }
-      PTS=parseInt(r.points,10)||PTS;
+      PTS=parseInt(r.points,10); if(isNaN(PTS))PTS=0;
       render();
       toast(t.gGot+r.granted+" "+t.pt);
       giftLock(parseInt(r.left,10)||0);
     })
-    .catch(function(){ giftIdle(); toast(t.noapi); });
+    .catch(function(){
+      toast(t.noapi);
+      setTimeout(function(){openDeep("gift");},900);
+    });
 });
 
 function applyData(d){
