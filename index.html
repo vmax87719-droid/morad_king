@@ -38,6 +38,14 @@ background:linear-gradient(90deg,#fff,var(--gold));-webkit-background-clip:text;
 border-radius:13px;padding:10px;text-align:center}
 .bcell b{display:block;font-size:17px;font-weight:900;color:var(--gold)}
 .bcell span{font-size:10px;color:var(--dim)}
+.gift{border-radius:18px;padding:16px;margin-bottom:14px;text-align:center;
+background:linear-gradient(145deg,#2b0b13,#19060b);border:1px solid rgba(255,203,92,.28)}
+.gift h3{margin:0 0 6px;font-size:14px;color:var(--gold)}
+.gift p{margin:0 0 13px;font-size:11px;color:var(--dim);line-height:1.7}
+.gbtn{border:none;border-radius:14px;padding:13px 26px;font-size:13px;font-weight:900;cursor:pointer;
+background:linear-gradient(145deg,var(--red2),var(--red));color:#fff;
+box-shadow:0 8px 22px rgba(225,29,46,.42)}
+.gbtn:disabled{background:#291118;color:#836069;box-shadow:none}
 .ref{border-radius:18px;padding:15px;margin-bottom:14px;background:var(--card);border:1px solid var(--line)}
 .rtitle{font-size:12px;color:var(--dim);margin-bottom:9px}
 .rrow{display:flex;gap:8px}
@@ -67,7 +75,6 @@ background:linear-gradient(145deg,var(--red2),var(--red));color:#fff;white-space
 .buy.off{background:#291118;color:#7b5761}
 .ch{border-radius:18px;padding:14px;margin-bottom:10px;background:var(--card);
 border:1px solid var(--line);display:flex;align-items:center;gap:12px;cursor:pointer}
-.ch:active{border-color:var(--red2)}
 .chico{width:42px;height:42px;flex:0 0 42px;border-radius:13px;display:grid;place-items:center;font-size:19px;
 background:linear-gradient(145deg,rgba(255,203,92,.18),rgba(225,29,46,.08));border:1px solid var(--line)}
 .chtxt{flex:1;min-width:0}
@@ -112,6 +119,8 @@ padding:11px 13px;font-size:11px;color:#ffb3bd;margin-bottom:13px;line-height:1.
     <button class="lang" id="langBtn">English</button>
   </div>
 
+  <div id="gate" class="warn hide"></div>
+
   <!-- الرئيسية -->
   <div id="tabHome">
     <div class="bal">
@@ -122,6 +131,12 @@ padding:11px 13px;font-size:11px;color:#ffb3bd;margin-bottom:13px;line-height:1.
         <div class="bcell"><b id="ordsH">0</b><span id="lOrdsH">مشترياتي</span></div>
         <div class="bcell"><b id="prodsH">0</b><span id="lProdsH">منتجات</span></div>
       </div>
+    </div>
+
+    <div class="gift">
+      <h3 id="gTitle">🎁 الهدية اليومية</h3>
+      <p id="gSub">نفس هدية البوت — لا يمكن أخذها مرتين</p>
+      <button class="gbtn" id="gBtn">استلام الهدية</button>
     </div>
 
     <div class="ref">
@@ -194,7 +209,7 @@ padding:11px 13px;font-size:11px;color:#ffb3bd;margin-bottom:13px;line-height:1.
 <div class="toast" id="toast"></div>
 
 <script>
-/* ================= الإعداد ================= */
+/* ================= الثوابت ================= */
 var BOT="MORAD_king_storbot";
 var CH_OFF="https://t.me/moradking11";
 var CH_PRF="https://t.me/morad_botx";
@@ -202,30 +217,40 @@ var CH_PRF="https://t.me/morad_botx";
 var tg=(window.Telegram&&window.Telegram.WebApp)?window.Telegram.WebApp:null;
 if(tg){try{tg.ready();tg.expand();}catch(e){}}
 
-/* البيانات تُقرأ من #hash أولاً — لا يُسقطها أي موقع — ثم من ?query */
+/* ============ الهوية: من الرابط فقط، أو من تيليجرام. لا ذاكرة متصفح ============ */
 var qh=new URLSearchParams((location.hash||"").replace(/^#/,""));
 var qq=new URLSearchParams(location.search||"");
 function P(k){var v=qh.get(k);if(v===null||v==="")v=qq.get(k);return v;}
 
-var UID=P("u")||"";
-if(UID==="None")UID="";
-if(UID===""){try{if(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user&&tg.initDataUnsafe.user.id)UID=String(tg.initDataUnsafe.user.id);}catch(e){}}
-if(UID===""){try{UID=localStorage.getItem("ms_uid")||"";}catch(e){UID="";}}
+var URL_UID=P("u")||"";
+if(URL_UID==="None")URL_UID="";
+var TG_UID="";
+try{
+  if(tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user&&tg.initDataUnsafe.user.id)
+    TG_UID=String(tg.initDataUnsafe.user.id);
+}catch(e){}
+
+/* إن اختلف معرّف الرابط عن معرّف تيليجرام، فالرابط لا يخصّ هذا المستخدم */
+var MISMATCH=false;
+var UID=URL_UID;
+if(TG_UID!==""){
+  UID=TG_UID;
+  if(URL_UID!==""&&URL_UID!==TG_UID) MISMATCH=true;
+}
 
 var API=P("api")||"";
-if(API===""){try{API=localStorage.getItem("ms_api")||"";}catch(e){API="";}}
+var GAPI=P("gapi")||"";
+if(MISMATCH){ API=""; GAPI=""; }
 
-var LANG=P("g")||localStorage.getItem("mstore_lang")||"ar";
+var LANG=P("g")||"ar";
 if(LANG!=="en")LANG="ar";
 
-var PTS=parseInt(P("p")||"0",10); if(isNaN(PTS))PTS=0;
-var REFS=parseInt(P("r")||"0",10); if(isNaN(REFS))REFS=0;
-var ORDS=0;
+var PTS=0,REFS=0,ORDS=0;
+if(!MISMATCH){
+  PTS=parseInt(P("p")||"0",10); if(isNaN(PTS))PTS=0;
+  REFS=parseInt(P("r")||"0",10); if(isNaN(REFS))REFS=0;
+}
 
-if(UID){try{localStorage.setItem("ms_uid",UID);}catch(e){}}
-if(API){try{localStorage.setItem("ms_api",API);}catch(e){}}
-
-/* منتجاتك الحقيقية — تظهر فوراً قبل الاتصال */
 var PRODUCTS=[
   {n:1,name:"GRINGO-KEY",price:1,stock:true},
   {n:2,name:"AIM BOT NO BAN 🔥",price:1,stock:true},
@@ -241,9 +266,13 @@ lUid:"معرّفي",lRefs:"إحالاتي",lOrds:"مشترياتي",lProds:"ال
 lLang:"اللغة",langName:"العربية",navHome:"الرئيسية",navStore:"المتجر",navAcct:"حسابي",
 chTitle:"القنوات",chOffN:"مراد كينق",chOffS:"القناة الرسمية",
 chPrfN:"قناة الإثباتات",chPrfS:"إثباتات الشراء",
+gTitle:"🎁 الهدية اليومية",gSub:"نفس هدية البوت — لا يمكن أخذها مرتين",
+gClaim:"استلام الهدية",gGot:"مبروك! +",gWait:"ارجع بعد ",gOff:"الهدية متوقفة حالياً",
+gNoApi:"افتح التطبيق من البوت لتعمل الهدية",
 note:"الأسعار تُخصم من رصيدك في البوت تلقائياً<br>بعد الشراء يصلك المحتوى في تيليجرام",
 opening:"جاري فتح البوت لإتمام الشراء...",noapi:"تعذّر التحديث — اضغط ⟳",
-empty:"لا توجد منتجات الآن",lang:"English"},
+empty:"لا توجد منتجات الآن",
+mismatch:"هذا الرابط لا يخصّ حسابك. افتح التطبيق من بوتك مباشرة.",lang:"English"},
 en:{sub:"Official Store",blab:"Your balance",unit:"pts",rtitle:"🔗 Your referral link",
 copy:"Copy",copied:"Copied ✓",ptitle:"Products",buy:"Buy",free:"FREE",out:"Sold out",pt:"pts",
 lRefsH:"Referrals",lOrdsH:"Orders",lProdsH:"Products",
@@ -251,15 +280,26 @@ lUid:"My ID",lRefs:"Referrals",lOrds:"Orders",lProds:"Available",
 lLang:"Language",langName:"English",navHome:"Home",navStore:"Store",navAcct:"Account",
 chTitle:"Channels",chOffN:"Morad King",chOffS:"Official channel",
 chPrfN:"Proofs Channel",chPrfS:"Purchase proofs",
+gTitle:"🎁 Daily Gift",gSub:"Same as the bot gift — cannot claim twice",
+gClaim:"Claim gift",gGot:"Congrats! +",gWait:"Come back in ",gOff:"Gift is disabled",
+gNoApi:"Open the app from the bot to use the gift",
 note:"Prices are deducted from your bot balance<br>Content arrives in Telegram after purchase",
 opening:"Opening the bot to complete your order...",noapi:"Could not refresh — tap ⟳",
-empty:"No products right now",lang:"عربي"}
+empty:"No products right now",
+mismatch:"This link is not for your account. Open the app from your bot.",lang:"عربي"}
 };
 
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
-function toast(m){var e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(function(){e.classList.remove("on");},2300);}
-function refLink(){return "https://t.me/"+BOT+"?start=ref_"+(UID||"");}
+function toast(m){var e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(function(){e.classList.remove("on");},2400);}
+function refLink(){return UID?("https://t.me/"+BOT+"?start=ref_"+UID):"—";}
+function fmtLeft(s){
+  if(s<60)return s+"s";
+  var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+  if(h>0&&m===0)return h+"h";
+  if(h>0)return h+"h "+m+"m";
+  return m+"m";
+}
 
 function render(){
   var t=T[LANG];
@@ -275,6 +315,7 @@ function render(){
   $("chTitle").textContent=t.chTitle;
   $("chOffN").textContent=t.chOffN; $("chOffS").textContent=t.chOffS;
   $("chPrfN").textContent=t.chPrfN; $("chPrfS").textContent=t.chPrfS;
+  $("gTitle").textContent=t.gTitle;
   $("lRefsH").textContent=t.lRefsH; $("lOrdsH").textContent=t.lOrdsH; $("lProdsH").textContent=t.lProdsH;
   $("lUid").textContent=t.lUid; $("lRefs").textContent=t.lRefs;
   $("lOrds").textContent=t.lOrds; $("lProds").textContent=t.lProds;
@@ -286,6 +327,10 @@ function render(){
   $("prodsH").textContent=PRODUCTS.length; $("prodsA").textContent=PRODUCTS.length;
   $("uidV").textContent=UID||"—";
   $("rlink").textContent=refLink(); $("rlink2").textContent=refLink();
+
+  var g=$("gate");
+  if(MISMATCH){ g.textContent=t.mismatch; g.classList.remove("hide"); }
+  else { g.classList.add("hide"); }
 
   var box=$("list"); box.innerHTML="";
   if(!PRODUCTS.length){
@@ -317,14 +362,14 @@ $("navHome").addEventListener("click",function(){showTab("home");});
 $("navStore").addEventListener("click",function(){showTab("store");});
 $("navAcct").addEventListener("click",function(){showTab("acct");});
 
-/* ===== الشراء: رابط عميق يعمل من أي زر — لا يعتمد على sendData ===== */
+/* ===== الشراء: رابط عميق يفتح البوت على المنتج ===== */
 function buy(id){
   toast(T[LANG].opening);
   var link="https://t.me/"+BOT+"?start=buy_"+id;
   setTimeout(function(){
     if(tg&&tg.openTelegramLink){try{tg.openTelegramLink(link);return;}catch(e){}}
     location.href=link;
-  },700);
+  },600);
 }
 
 function openCh(url){
@@ -346,8 +391,41 @@ $("copyBtn2").addEventListener("click",copyRef);
 
 $("langBtn").addEventListener("click",function(){
   LANG=(LANG==="ar")?"en":"ar";
-  try{localStorage.setItem("mstore_lang",LANG);}catch(e){}
   render();
+});
+
+/* ===== الهدية اليومية — نفس عداد البوت ===== */
+function giftIdle(){
+  var t=T[LANG], b=$("gBtn");
+  b.disabled=false; b.textContent=t.gClaim;
+  $("gSub").textContent=t.gSub;
+}
+function giftLock(sec){
+  var t=T[LANG], b=$("gBtn");
+  b.disabled=true;
+  b.textContent=t.gWait+fmtLeft(sec);
+  $("gSub").textContent=t.gSub;
+}
+$("gBtn").addEventListener("click",function(){
+  var t=T[LANG], b=$("gBtn");
+  if(!GAPI){ toast(t.gNoApi); return; }
+  b.disabled=true; b.textContent="...";
+  fetch(GAPI+"&t="+Date.now(),{method:"GET",cache:"no-store"})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var r=(d&&d.result)?d.result:d;
+      if(!r||!r.ok){
+        if(r&&r.err==="cooldown"&&r.left>0){ giftLock(parseInt(r.left,10)||0); toast(t.gWait+fmtLeft(r.left)); }
+        else if(r&&r.err==="disabled"){ $("gSub").textContent=t.gOff; b.disabled=true; b.textContent=t.gOff; }
+        else { giftIdle(); toast(t.noapi); }
+        return;
+      }
+      PTS=parseInt(r.points,10)||PTS;
+      render();
+      toast(t.gGot+r.granted+" "+t.pt);
+      giftLock(parseInt(r.left,10)||0);
+    })
+    .catch(function(){ giftIdle(); toast(t.noapi); });
 });
 
 function applyData(d){
@@ -357,9 +435,6 @@ function applyData(d){
   if(typeof r.points!=="undefined"){var v=parseInt(r.points,10);if(!isNaN(v)){PTS=v;got=true;}}
   if(typeof r.refs!=="undefined"){var v2=parseInt(r.refs,10);if(!isNaN(v2)){REFS=v2;got=true;}}
   if(typeof r.orders!=="undefined"){var v3=parseInt(r.orders,10);if(!isNaN(v3)){ORDS=v3;got=true;}}
-  if(r.uid&&String(r.uid)!=="None"&&String(r.uid)!==""){
-    UID=String(r.uid);try{localStorage.setItem("ms_uid",UID);}catch(e){}
-  }
   if(r.products&&r.products.length){
     PRODUCTS=r.products.map(function(x){
       return {n:parseInt(x.n,10)||0,name:String(x.name||""),price:parseInt(x.price,10)||0,stock:!!x.stock};
@@ -386,6 +461,7 @@ $("reBtn").addEventListener("click",function(){loadLive(true);});
 
 showTab("home");
 render();
+giftIdle();
 loadLive(false);
 setInterval(function(){loadLive(false);},15000);
 </script>
